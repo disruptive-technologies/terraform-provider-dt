@@ -36,7 +36,7 @@ resource "dt_project_member_role_bindings" "test" {
 
 ### Required
 
-- `email` (String) Email of the project member.
+- `email` (String) Email of the project member. Must be a valid email address, with all lowercase letters
 - `organization` (String) Resource name of the organization on the format `organizations/{organization_id}`.
 - `projects` (Set of String) List of projects to grant roles to of the format `projects/{project_id}`.
 - `role` (String) Role to assign the member to.

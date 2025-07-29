@@ -461,7 +461,7 @@ var notificationAction = schema.NestedAttributeObject{
 				"recipients": schema.ListAttribute{
 					Required:    true,
 					ElementType: types.StringType,
-					Description: "The email addresses to send the email to.",
+					Description: "The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.",
 					Validators: []validator.List{
 						listvalidator.ValueStringsAre(stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$`),
 							`Email must be a valid email address and use all lowercase letters.

@@ -190,7 +190,7 @@ Optional:
 Required:
 
 - `body` (String) The body of the email.
-- `recipients` (List of String) The email addresses to send the email to.
+- `recipients` (List of String) The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.
 - `subject` (String) The subject of the email.
 
 
@@ -323,7 +323,7 @@ Optional:
 Required:
 
 - `body` (String) The body of the email.
-- `recipients` (List of String) The email addresses to send the email to.
+- `recipients` (List of String) The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.
 - `subject` (String) The subject of the email.
 
 

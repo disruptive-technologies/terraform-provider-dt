@@ -97,7 +97,7 @@ func (m *projectMemberRoleBindingsResource) Schema(_ context.Context, _ resource
 			},
 			"email": schema.StringAttribute{
 				Required:    true,
-				Description: "Email of the project member.",
+				Description: "Email of the project member. Must be a valid email address, with all lowercase letters",
 				// require recreation of the resource if the email changes
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
