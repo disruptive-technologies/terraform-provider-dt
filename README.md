@@ -1,6 +1,5 @@
-# Unofficial Disruptive Technologies Terraform Provider
-## Disclaimer
-This provider is not officially supported by Disruptive Technologies or Hashicorp, it is a hobby project and should be used at your own risk.
+# Disruptive Technologies Terraform Provider
+This is a Terraform provider for Disruptive Technologies, allowing you to manage devices, data connectors, projects, and notification rules within the Disruptive Technologies platform. This provider is designed to work with the Disruptive Technologies API, enabling infrastructure as code for IoT solutions.
 
 ## Features
 The provider currently supports the following resources and data sources:
@@ -13,8 +12,8 @@ The provider currently supports the following resources and data sources:
 - [ ] Organization Data Source
 - [x] Project data source
 - [x] Project resource
-- [x] Rules Resource
-- [ ] Rules Data Source
+- [x] Notification Rules Resource
+- [ ] Notification Rules Data Source
 
 ## Usage
 
@@ -33,7 +32,7 @@ Here is an example of how to configure the provider:
 terraform {
   required_providers {
     disruptive-technologies = {
-      source = "registry.terraform.io/hasfjord/dt"
+      source = "registry.terraform.io/disruptive-technologies/dt"
     }
   }
 }
