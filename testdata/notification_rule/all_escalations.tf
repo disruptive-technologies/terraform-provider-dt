@@ -83,10 +83,9 @@ resource "dt_notification_rule" "test" {
       actions = [{
         type = "SERVICE_CHANNEL"
         service_channel_config = {
-          asset_tag_id = "asset-tag-id"
-          description  = "Temperature $celsius is over the limit"
-          store_id     = "store-id"
-          trade        = "REFRIGERATION"
+          description = "Temperature $celsius is over the limit"
+          store_id    = "store-id"
+          trade       = "REFRIGERATION"
         }
       }]
     },

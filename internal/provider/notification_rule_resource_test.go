@@ -260,7 +260,6 @@ func TestAccNotificationRuleResource(t *testing.T) {
 					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.3.escalate_after", "3600s"),
 					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.3.actions.#", "1"),
 					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.3.actions.0.type", "SERVICE_CHANNEL"),
-					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.3.actions.0.service_channel_config.asset_tag_id", "asset-tag-id"),
 					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.3.actions.0.service_channel_config.description", "Temperature $celsius is over the limit"),
 					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.3.actions.0.service_channel_config.store_id", "store-id"),
 					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.3.actions.0.service_channel_config.trade", "REFRIGERATION"),

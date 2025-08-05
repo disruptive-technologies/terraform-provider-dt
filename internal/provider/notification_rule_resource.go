@@ -545,12 +545,15 @@ var notificationAction = schema.NestedAttributeObject{
 			Attributes: map[string]schema.Attribute{
 				"store_id": schema.StringAttribute{
 					Optional: true,
+					Computed: true,
 					Description: `A 4-digit number that identifies the store the asset is in.
     								If this is not set, it will be derived from the "service_channel_store_id"
     								label in Studio.`,
+					Default: stringdefault.StaticString(""),
 				},
 				"asset_tag_id": schema.StringAttribute{
 					Optional: true,
+					Computed: true,
 					Description: ` tag that is set on the asset in ServiceChannel. Will be used to find the 
 									asset, and link it to work orders. 
 									When specified, the trade of the asset will be used for the work order instead 
@@ -558,19 +561,24 @@ var notificationAction = schema.NestedAttributeObject{
 									based on this tag, the provided trade will be used instead to derive fields 
 									dependent on the trade. If this is not set, it will be derived from the 
 									"service_channel_asset_tag_id" label in Studio.`,
+					Default: stringdefault.StaticString(""),
 				},
 				"trade": schema.StringAttribute{
 					Optional: true,
+					Computed: true,
 					Description: `The trade to use if the asset tag id is either not specified or no matching
 									asset could be found. If this is not set, it will be derived from the 
 									"service_channel_trade" label in Studio.
 									Examples of a trade could be "REFRIGERATION" or "HOT FOOD".`,
+					Default: stringdefault.StaticString(""),
 				},
 				"description": schema.StringAttribute{
 					Optional: true,
+					Computed: true,
 					Description: `The description that will appear on the work order. If this is not set, 
 									it will be derived from the "service_channel_work_order_description"
 									label in Studio.`,
+					Default: stringdefault.StaticString(""),
 				},
 			},
 		},
