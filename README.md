@@ -12,6 +12,8 @@ The provider currently supports the following resources and data sources:
 - [ ] Organization Data Source
 - [x] Project data source
 - [x] Project resource
+- [x] Contact Group Resource
+- [ ] Contact Group Data Source
 - [x] Notification Rules Resource
 - [ ] Notification Rules Data Source
 

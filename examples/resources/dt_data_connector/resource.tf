@@ -5,12 +5,14 @@ data "dt_project" "provider_test_project" {
 }
 
 data "google_iam_workload_identity_pool" "pool" {
-  project = data.dt_project.provider_test_project.id
-  name    = "your-pool-name"
+  project                   = data.dt_project.provider_test_project.id
+  workload_identity_pool_id = "your-pool-id"
+  name                      = "your-pool-name"
 }
 
 data "google_iam_workload_identity_pool_provider" "provider" {
   project                            = data.dt_project.provider_test_project.id
+  workload_identity_pool_id          = data.google_iam_workload_identity_pool.pool.workload_identity_pool_id
   workload_identity_pool_provider_id = "your-provider-id"
 }
 
