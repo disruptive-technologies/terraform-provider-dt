@@ -10,6 +10,96 @@ import (
 	"strings"
 )
 
+type Contact struct {
+	Name             string `json:"name"`
+	ContactGroup     string `json:"contactGroup"`
+	DisplayName      string `json:"displayName"`
+	Email            string `json:"email"`
+	PhoneNumber      string `json:"phoneNumber"`
+	HasProjectAccess bool   `json:"hasProjectAccess"`
+}
+
+type CreateContactRequest struct {
+	Project string  `json:"project"`
+	Contact Contact `json:"contact"`
+}
+
+type UpdateContactRequest struct {
+	ContactGroup string `json:"contactGroup"`
+	DisplayName  string `json:"displayName"`
+	Email        string `json:"email"`
+	PhoneNumber  string `json:"phoneNumber"`
+}
+
+func (c *Client) GetContact(name string) (Contact, error) {
+	url := fmt.Sprintf("%s/v2/%s", strings.TrimSuffix(c.URL, "/"), name)
+
+	responseBody, err := c.DoRequest(context.Background(), http.MethodGet, url, nil, nil)
+	if err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to get contact: %w", err)
+	}
+
+	var contact Contact
+	if err := json.Unmarshal(responseBody, &contact); err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to unmarshal contact: %w", err)
+	}
+
+	return contact, nil
+}
+
+func (c *Client) CreateContact(ctx context.Context, request CreateContactRequest) (Contact, error) {
+	url := fmt.Sprintf("%s/v2/%s/contacts", strings.TrimSuffix(c.URL, "/"), request.Project)
+
+	body, err := json.Marshal(request.Contact)
+	if err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to marshal create contact request: %w", err)
+	}
+
+	responseBody, err := c.DoRequest(ctx, http.MethodPost, url, body, nil)
+	if err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to create contact: %w", err)
+	}
+
+	var createdContact Contact
+	if err := json.Unmarshal(responseBody, &createdContact); err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to unmarshal created contact: %w", err)
+	}
+
+	return createdContact, nil
+}
+
+func (c *Client) UpdateContact(ctx context.Context, request UpdateContactRequest, name string) (Contact, error) {
+	url := fmt.Sprintf("%s/v2/%s", strings.TrimSuffix(c.URL, "/"), name)
+
+	body, err := json.Marshal(request)
+	if err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to marshal update contact request: %w", err)
+	}
+
+	responseBody, err := c.DoRequest(ctx, http.MethodPatch, url, body, nil)
+	if err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to update contact: %w", err)
+	}
+
+	var updatedContact Contact
+	if err := json.Unmarshal(responseBody, &updatedContact); err != nil {
+		return Contact{}, fmt.Errorf("dt: failed to unmarshal updated contact: %w", err)
+	}
+
+	return updatedContact, nil
+}
+
+func (c *Client) DeleteContact(ctx context.Context, name string) error {
+	url := fmt.Sprintf("%s/v2/%s", strings.TrimSuffix(c.URL, "/"), name)
+
+	_, err := c.DoRequest(ctx, http.MethodDelete, url, nil, nil)
+	if err != nil {
+		return fmt.Errorf("dt: failed to delete contact: %w", err)
+	}
+
+	return nil
+}
+
 type CreateContactGroupRequest struct {
 	Organization string       `json:"organization"`
 	ContactGroup ContactGroup `json:"contactGroup"`

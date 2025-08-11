@@ -83,7 +83,7 @@ func (r *contactGroupResource) Schema(ctx context.Context, req resource.SchemaRe
 	}
 }
 
-type contactResourceModel struct {
+type contactGroupResourceModel struct {
 	Name         types.String `tfsdk:"name"`
 	Organization types.String `tfsdk:"organization"`
 	DisplayName  types.String `tfsdk:"display_name"`
@@ -94,7 +94,7 @@ type contactResourceModel struct {
 // Create creates the resource and sets the initial state.
 func (r *contactGroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Read the plan to get the contact group details
-	var plan contactResourceModel
+	var plan contactGroupResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -134,7 +134,7 @@ func (r *contactGroupResource) Create(ctx context.Context, req resource.CreateRe
 }
 func (r *contactGroupResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Read the current state of the resource
-	var state contactResourceModel
+	var state contactGroupResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -170,7 +170,7 @@ func (r *contactGroupResource) Read(ctx context.Context, req resource.ReadReques
 // It compares the plan with the current state and applies changes accordingly.
 func (r *contactGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Read the current state of the resource
-	var plan contactResourceModel
+	var plan contactGroupResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -211,7 +211,7 @@ func (r *contactGroupResource) Update(ctx context.Context, req resource.UpdateRe
 
 func (r *contactGroupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Read the current state of the resource
-	var state contactResourceModel
+	var state contactGroupResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -251,7 +251,7 @@ func (r *contactGroupResource) Configure(ctx context.Context, req resource.Confi
 	r.client = client
 }
 
-func contactGroupToState(contactGroup dt.ContactGroup) (contactResourceModel, diag.Diagnostics) {
+func contactGroupToState(contactGroup dt.ContactGroup) (contactGroupResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	organizationID, _, err := dt.ParseResourceName(contactGroup.Name)
 	if err != nil {
@@ -262,7 +262,7 @@ func contactGroupToState(contactGroup dt.ContactGroup) (contactResourceModel, di
 		))
 	}
 
-	return contactResourceModel{
+	return contactGroupResourceModel{
 		Name:         types.StringValue(contactGroup.Name),
 		Organization: types.StringValue("organizations/" + organizationID),
 		DisplayName:  types.StringValue(contactGroup.DisplayName),
@@ -271,7 +271,7 @@ func contactGroupToState(contactGroup dt.ContactGroup) (contactResourceModel, di
 	}, diags
 }
 
-func stateToCreateContactGroupRequest(state contactResourceModel) (dt.CreateContactGroupRequest, diag.Diagnostics) {
+func stateToCreateContactGroupRequest(state contactGroupResourceModel) (dt.CreateContactGroupRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if state.Organization.IsNull() || state.Organization.IsUnknown() {
@@ -291,7 +291,7 @@ func stateToCreateContactGroupRequest(state contactResourceModel) (dt.CreateCont
 	}, diags
 }
 
-func stateToUpdateContactGroupRequest(state contactResourceModel) (dt.UpdateContactGroupRequest, diag.Diagnostics) {
+func stateToUpdateContactGroupRequest(state contactGroupResourceModel) (dt.UpdateContactGroupRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if state.DisplayName.IsNull() || state.DisplayName.IsUnknown() {
