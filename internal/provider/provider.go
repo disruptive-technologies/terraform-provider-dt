@@ -210,6 +210,7 @@ func (p *DTProvider) Resources(_ context.Context) []func() resource.Resource {
 		NewEmulatorResource,
 		NewMemberResource,
 		NewContactGroupResource,
+		NewContactResource,
 	}
 }
 
