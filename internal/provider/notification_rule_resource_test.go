@@ -366,4 +366,66 @@ func TestAccNotificationRuleResource(t *testing.T) {
 			},
 		},
 	})
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Test case for org level alerts
+			{
+				Config: notificationRuleProviderConfig + readTestFile(t, "../../testdata/notification_rule/org_level_alerts.tf"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "display_name", "Organization Level Alert"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "parent_resource_name", "organizations/cvinmt9aq9sc738g6eog"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "trigger.field", "temperature"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "trigger.range.lower", "0"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "trigger.range.upper", "30"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.#", "3"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.display_name", "Email General Manager"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.type", "EMAIL"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.body", "Temperature $celsius°C is out of range for organization"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.subject", "$projectDisplayName Temperature Alert"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.contact_groups.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.contact_groups.0", "organizations/cvinmt9aq9sc738g6eog/contactGroups/d2dkclv9a2cc7390cis0"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.1.display_name", "SMS General Manager"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.1.actions.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.1.actions.0.type", "SMS"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.1.actions.0.sms_config.body", "Temperature $celsius°C is out of range for organization"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.1.actions.0.sms_config.contact_groups.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.1.actions.0.sms_config.contact_groups.0", "organizations/cvinmt9aq9sc738g6eog/contactGroups/d2dkclv9a2cc7390cis0"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.2.display_name", "Call General Manager"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.2.actions.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.2.actions.0.type", "PHONE_CALL"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.2.actions.0.phone_call_config.introduction", "This is an automated call from Disruptive Technologies"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.2.actions.0.phone_call_config.message", "Temperature $celsius°C is out of range for organization"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.2.actions.0.phone_call_config.contact_groups.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.2.actions.0.phone_call_config.contact_groups.0", "organizations/cvinmt9aq9sc738g6eog/contactGroups/d2dkclv9a2cc7390cis0"),
+				),
+			},
+		},
+	})
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Test case for org level alerts
+			{
+				Config: notificationRuleProviderConfig + readTestFile(t, "../../testdata/notification_rule/org_level_with_labels.tf"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "display_name", "Organization Level Alert with Labels"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "parent_resource_name", "organizations/cvinmt9aq9sc738g6eog"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "project_labels.%", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "project_labels.StoreID", ""),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "trigger.range.lower", "0"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "trigger.range.upper", "30"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.display_name", "Email Someone"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.type", "EMAIL"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.body", "Temperature $celsius°C is out of range for organization"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.subject", "$projectDisplayName Temperature Alert"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.recipients.#", "1"),
+					resource.TestCheckResourceAttr("dt_notification_rule.test", "escalation_levels.0.actions.0.email_config.recipients.0", "someone@example.com"),
+				),
+			},
+		},
+	})
 }

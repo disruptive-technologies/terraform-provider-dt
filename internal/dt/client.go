@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -172,4 +173,14 @@ func getRetryAfterTime(res *http.Response) time.Time {
 		return retryAfterTime
 	}
 	return time.Now().Add(retryAfterDuration)
+}
+
+// ParseResourceName is a helper function to parse the resource name projects/{projectID}/rules/{ruleID}
+// into projectID and notificationRuleID.
+func ParseResourceName(name string) (string, string, error) {
+	parts := strings.Split(name, "/")
+	if len(parts) != 4 {
+		return "", "", fmt.Errorf("dt: invalid resource name: %s", name)
+	}
+	return parts[1], parts[3], nil
 }
