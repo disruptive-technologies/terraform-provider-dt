@@ -58,8 +58,7 @@ resource "dt_notification_rule" "my_notification_rule" {
 
 ### Required
 
-- `display_name` (String) he display name of the rule that is visible in Studio.
-- `project_id` (String) The DT project ID of the rule.
+- `display_name` (String) The display name of the rule that is visible in Studio.
 - `trigger` (Attributes) The condition that that needs to be met before the actions are executed. (see [below for nested schema](#nestedatt--trigger))
 
 ### Optional
@@ -78,6 +77,10 @@ resource "dt_notification_rule" "my_notification_rule" {
     							alert is triggered, and the next escalation level will be used when the alert is
     							escalated, and so on. Each escalation level needs at least one action, and there
     							needs to be at least one escalation level. (see [below for nested schema](#nestedatt--escalation_levels))
+- `parent_resource_name` (String) The parent resource name of the rule. Could be either `projects/{project_id}` or `organizations/{organization_id}`.
+- `project_id` (String, Deprecated) The DT project ID of the rule. Required if parent_type is set to 'projects'.
+- `project_labels` (Map of String) An optional map of labels to use as a filter for which projects this rule applies to.
+    							This is only relevant for org-level rules.
 - `reminder_notification` (Boolean) Whether or not to send a reminder notifications
 - `resolved_notification` (Boolean) Whether or not to send a resolved notifications
 - `schedule` (Attributes) A schedule limits at what times the rule will be evaluated, and events will be processed. 
@@ -190,8 +193,13 @@ Optional:
 Required:
 
 - `body` (String) The body of the email.
-- `recipients` (List of String) The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.
 - `subject` (String) The subject of the email.
+
+Optional:
+
+- `contact_groups` (List of String) Contact groups can optionally be used instead of recipients.
+    								Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".
+- `recipients` (List of String) The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.
 
 
 <a id="nestedatt--actions--phone_call_config"></a>
@@ -203,6 +211,11 @@ Required:
     								Example: "This is an automated call from Disruptive Technologies.
 - `message` (String) The message that should be read to the callee.
     								Example: "The temperature in the fridge is above the threshold, currently at $celsius.
+
+Optional:
+
+- `contact_groups` (List of String) Contact groups can optionally be used instead of recipients.
+					Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".
 - `recipients` (List of String) A list of the phone numbers to call. Must be in E.164 format.
 
 
@@ -246,6 +259,11 @@ Required:
 Required:
 
 - `body` (String) The message to send in the SMS.
+
+Optional:
+
+- `contact_groups` (List of String) Contact groups can optionally be used instead of recipients.
+    								Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".
 - `recipients` (List of String) The phone numbers to send the SMS to.
 
 
@@ -323,8 +341,13 @@ Optional:
 Required:
 
 - `body` (String) The body of the email.
-- `recipients` (List of String) The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.
 - `subject` (String) The subject of the email.
+
+Optional:
+
+- `contact_groups` (List of String) Contact groups can optionally be used instead of recipients.
+    								Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".
+- `recipients` (List of String) The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.
 
 
 <a id="nestedatt--escalation_levels--actions--phone_call_config"></a>
@@ -336,6 +359,11 @@ Required:
     								Example: "This is an automated call from Disruptive Technologies.
 - `message` (String) The message that should be read to the callee.
     								Example: "The temperature in the fridge is above the threshold, currently at $celsius.
+
+Optional:
+
+- `contact_groups` (List of String) Contact groups can optionally be used instead of recipients.
+					Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".
 - `recipients` (List of String) A list of the phone numbers to call. Must be in E.164 format.
 
 
@@ -379,6 +407,11 @@ Required:
 Required:
 
 - `body` (String) The message to send in the SMS.
+
+Optional:
+
+- `contact_groups` (List of String) Contact groups can optionally be used instead of recipients.
+    								Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".
 - `recipients` (List of String) The phone numbers to send the SMS to.
 
 

@@ -27,7 +27,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 const (
@@ -64,6 +63,9 @@ const (
 	dayFriday    = "Friday"
 	daySaturday  = "Saturday"
 	daySunday    = "Sunday"
+
+	parentTypeProjects      = "projects"
+	parentTypeOrganizations = "organizations"
 )
 
 var (
@@ -128,11 +130,16 @@ func (r *notificationRuleResource) Schema(ctx context.Context, req resource.Sche
 			},
 			"display_name": schema.StringAttribute{
 				Required:    true,
-				Description: "he display name of the rule that is visible in Studio.",
+				Description: "The display name of the rule that is visible in Studio.",
+			},
+			"parent_resource_name": schema.StringAttribute{
+				Optional:    true, // TODO: Should be required once project_id is removed.
+				Description: "The parent resource name of the rule. Could be either `projects/{project_id}` or `organizations/{organization_id}`.",
 			},
 			"project_id": schema.StringAttribute{
-				Required:    true,
-				Description: "The DT project ID of the rule.",
+				Optional:           true,
+				Description:        "The DT project ID of the rule. Required if parent_type is set to 'projects'.",
+				DeprecationMessage: "Use 'parent_resource_name' instead.",
 			},
 			"devices": schema.ListAttribute{
 				Optional:    true,
@@ -153,6 +160,16 @@ func (r *notificationRuleResource) Schema(ctx context.Context, req resource.Sche
 								This applies regardless of whether or not the devices field is set. The map can contain
 								both label key/value pairs, or just label keys. If multiple labels are specified, the
 								device must match all of them to be included.`,
+				// Defaults to empty list
+				Default:    mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+				Validators: []validator.Map{mapvalidator.SizeAtLeast(1)},
+			},
+			"project_labels": schema.MapAttribute{
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: `An optional map of labels to use as a filter for which projects this rule applies to.
+    							This is only relevant for org-level rules.`,
 				// Defaults to empty list
 				Default:    mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
 				Validators: []validator.Map{mapvalidator.SizeAtLeast(1)},
@@ -444,9 +461,19 @@ var notificationAction = schema.NestedAttributeObject{
 			Description: "The configuration for sending an SMS notification.",
 			Attributes: map[string]schema.Attribute{
 				"recipients": schema.ListAttribute{
-					Required:    true,
+					Optional:    true,
+					Computed:    true,
 					ElementType: types.StringType,
 					Description: "The phone numbers to send the SMS to.",
+					Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				},
+				"contact_groups": schema.ListAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: `Contact groups can optionally be used instead of recipients.
+    								Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".`,
+					Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 				},
 				"body": schema.StringAttribute{
 					Required:    true,
@@ -459,7 +486,8 @@ var notificationAction = schema.NestedAttributeObject{
 			Description: "The configuration for sending an email notification.",
 			Attributes: map[string]schema.Attribute{
 				"recipients": schema.ListAttribute{
-					Required:    true,
+					Optional:    true,
+					Computed:    true,
 					ElementType: types.StringType,
 					Description: "The email addresses to send the email to. Must be valid email addresses and use all lowercase letters.",
 					Validators: []validator.List{
@@ -470,6 +498,15 @@ var notificationAction = schema.NestedAttributeObject{
 					The domain must end with a top-level domain of at least two characters.`),
 						),
 					},
+					Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				},
+				"contact_groups": schema.ListAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: `Contact groups can optionally be used instead of recipients.
+    								Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".`,
+					Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 				},
 				"subject": schema.StringAttribute{
 					Required:    true,
@@ -607,9 +644,19 @@ var notificationAction = schema.NestedAttributeObject{
 			Description: "The configuration for sending a phone call notification.",
 			Attributes: map[string]schema.Attribute{
 				"recipients": schema.ListAttribute{
-					Required:    true,
+					Optional:    true,
+					Computed:    true,
 					ElementType: types.StringType,
 					Description: "A list of the phone numbers to call. Must be in E.164 format.",
+					Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				},
+				"contact_groups": schema.ListAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: `Contact groups can optionally be used instead of recipients.
+					Format: "organizations/{organization_id}/contactGroups/{contact_group_id}".`,
+					Default: listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 				},
 				"introduction": schema.StringAttribute{
 					Required: true,
@@ -641,11 +688,13 @@ var notificationAction = schema.NestedAttributeObject{
 // Data model
 type notificationRuleModel struct {
 	Name                 types.String              `tfsdk:"name"`
+	ParentResourceName   types.String              `tfsdk:"parent_resource_name"`
 	Enabled              types.Bool                `tfsdk:"enabled"`
 	DisplayName          types.String              `tfsdk:"display_name"`
 	ProjectID            types.String              `tfsdk:"project_id"`
 	Devices              types.List                `tfsdk:"devices"`
 	DeviceLabels         types.Map                 `tfsdk:"device_labels"`
+	ProjectLabels        types.Map                 `tfsdk:"project_labels"`
 	Trigger              *triggerModel             `tfsdk:"trigger"`
 	EscalationLevels     []escalationLevelModel    `tfsdk:"escalation_levels"`
 	Schedule             *scheduleModel            `tfsdk:"schedule"`
@@ -674,14 +723,16 @@ type notificationActionModel struct {
 }
 
 type smsConfigModel struct {
-	Recipients types.List   `tfsdk:"recipients"`
-	Body       types.String `tfsdk:"body"`
+	Recipients    types.List   `tfsdk:"recipients"`
+	ContactGroups types.List   `tfsdk:"contact_groups"`
+	Body          types.String `tfsdk:"body"`
 }
 
 type emailConfigModel struct {
-	Recipients types.List   `tfsdk:"recipients"`
-	Subject    types.String `tfsdk:"subject"`
-	Body       types.String `tfsdk:"body"`
+	Recipients    types.List   `tfsdk:"recipients"`
+	ContactGroups types.List   `tfsdk:"contact_groups"`
+	Subject       types.String `tfsdk:"subject"`
+	Body          types.String `tfsdk:"body"`
 }
 
 type corrigoConfigModel struct {
@@ -712,9 +763,10 @@ type webhookConfigModel struct {
 }
 
 type phoneCallConfigModel struct {
-	Recipients   types.List   `tfsdk:"recipients"`
-	Introduction types.String `tfsdk:"introduction"`
-	Message      types.String `tfsdk:"message"`
+	Recipients    types.List   `tfsdk:"recipients"`
+	ContactGroups types.List   `tfsdk:"contact_groups"`
+	Introduction  types.String `tfsdk:"introduction"`
+	Message       types.String `tfsdk:"message"`
 }
 
 type signalTowerConfigModel struct {
@@ -781,9 +833,6 @@ func (r *notificationRuleResource) Create(ctx context.Context, req resource.Crea
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if len(plan.EscalationLevels[0].Actions) == 2 {
-		ctx = tflog.SetField(ctx, "plan", plan.EscalationLevels[0].Actions[1].CorrigoConfig)
-	}
 
 	// Convert the data to the dt.NotificationRule
 	toBeCreated, diags := stateToNotificationRule(ctx, plan)
@@ -792,8 +841,15 @@ func (r *notificationRuleResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	// Determine the parent resource type and ID
+	parent, diag := stateToParent(plan)
+	resp.Diagnostics.Append(diag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Create the notification rule
-	created, err := r.client.CreateNotificationRule(ctx, plan.ProjectID.ValueString(), toBeCreated)
+	created, err := r.client.CreateNotificationRule(ctx, parent, toBeCreated)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating notification rule",
@@ -807,11 +863,6 @@ func (r *notificationRuleResource) Create(ctx context.Context, req resource.Crea
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	if len(plan.EscalationLevels[0].Actions) == 2 {
-		ctx = tflog.SetField(ctx, "state", state.EscalationLevels[0].Actions[1].CorrigoConfig)
-		tflog.Debug(ctx, "Created notification rule")
 	}
 
 	// Set the state
@@ -948,6 +999,9 @@ func notificationRuleToState(ctx context.Context, notificationRule dt.Notificati
 	deviceLabelsMap, d := types.MapValueFrom(ctx, types.StringType, notificationRule.DeviceLabels)
 	diags = append(diags, d...)
 
+	projectLabelsMap, d := types.MapValueFrom(ctx, types.StringType, notificationRule.ProjectLabels)
+	diags = append(diags, d...)
+
 	trigger, d := triggerToState(ctx, notificationRule.Trigger)
 	diags = append(diags, d...)
 
@@ -959,10 +1013,7 @@ func notificationRuleToState(ctx context.Context, notificationRule dt.Notificati
 
 	// Convert the notification rule to the state model.
 	var state notificationRuleModel
-
-	state.Name = types.StringValue(notificationRule.Name)
-
-	projectID, _, err := dt.ParseResourceName(notificationRule.Name)
+	parentType, parentID, _, err := dt.ParseRuleResourceName(notificationRule.Name)
 	if err != nil {
 		diags.AddError(
 			"Error parsing notification rule name",
@@ -970,11 +1021,22 @@ func notificationRuleToState(ctx context.Context, notificationRule dt.Notificati
 		)
 		return state, diags
 	}
-	state.ProjectID = types.StringValue(projectID)
+
+	state.Name = types.StringValue(notificationRule.Name)
+
+	if parentType == parentTypeOrganizations {
+		state.ParentResourceName = types.StringValue(parentType + "/" + parentID)
+	}
+
+	if parentType == parentTypeProjects {
+		state.ProjectID = types.StringValue(parentID)
+	}
+
 	state.Enabled = types.BoolValue(notificationRule.Enabled)
 	state.DisplayName = types.StringValue(notificationRule.DisplayName)
 	state.Devices = devicesList
 	state.DeviceLabels = deviceLabelsMap
+	state.ProjectLabels = projectLabelsMap
 	state.Trigger = trigger
 	state.EscalationLevels = escalationLevels
 	state.Schedule = scheduleToState(notificationRule.Schedule)
@@ -1068,9 +1130,13 @@ func smsConfigToState(ctx context.Context, smsConfig *dt.SMSConfig) (*smsConfigM
 	recipientsList, d := types.ListValueFrom(ctx, types.StringType, smsConfig.Recipients)
 	diags = append(diags, d...)
 
+	contactGroupsList, d := types.ListValueFrom(ctx, types.StringType, smsConfig.ContactGroups)
+	diags = append(diags, d...)
+
 	return &smsConfigModel{
-		Recipients: recipientsList,
-		Body:       types.StringValue(smsConfig.Body),
+		Recipients:    recipientsList,
+		Body:          types.StringValue(smsConfig.Body),
+		ContactGroups: contactGroupsList,
 	}, diags
 }
 
@@ -1088,10 +1154,14 @@ func emailConfigToState(ctx context.Context, emailConfig *dt.EmailConfig) (*emai
 	recipientsList, d := types.ListValueFrom(ctx, types.StringType, recipientsLowerCase)
 	diags = append(diags, d...)
 
+	contactGroupsList, d := types.ListValueFrom(ctx, types.StringType, emailConfig.ContactGroups)
+	diags = append(diags, d...)
+
 	return &emailConfigModel{
-		Recipients: recipientsList,
-		Subject:    types.StringValue(emailConfig.Subject),
-		Body:       types.StringValue(emailConfig.Body),
+		Recipients:    recipientsList,
+		ContactGroups: contactGroupsList,
+		Subject:       types.StringValue(emailConfig.Subject),
+		Body:          types.StringValue(emailConfig.Body),
 	}, diags
 }
 
@@ -1153,10 +1223,14 @@ func phoneCallConfigToState(ctx context.Context, phoneCallConfig *dt.PhoneCallCo
 	recipientsList, d := types.ListValueFrom(ctx, types.StringType, phoneCallConfig.Recipients)
 	diags = append(diags, d...)
 
+	contactGroups, d := types.ListValueFrom(ctx, types.StringType, phoneCallConfig.ContactGroups)
+	diags = append(diags, d...)
+
 	return &phoneCallConfigModel{
-		Recipients:   recipientsList,
-		Introduction: types.StringValue(phoneCallConfig.Introduction),
-		Message:      types.StringValue(phoneCallConfig.Message),
+		Recipients:    recipientsList,
+		ContactGroups: contactGroups,
+		Introduction:  types.StringValue(phoneCallConfig.Introduction),
+		Message:       types.StringValue(phoneCallConfig.Message),
 	}, diags
 }
 
@@ -1283,6 +1357,10 @@ func stateToNotificationRule(ctx context.Context, state notificationRuleModel) (
 	d = state.DeviceLabels.ElementsAs(ctx, &deviceLabels, false)
 	diags = append(diags, d...)
 
+	projectLabels := make(map[string]string)
+	d = state.ProjectLabels.ElementsAs(ctx, &projectLabels, false)
+	diags = append(diags, d...)
+
 	trigger, d := stateToTrigger(ctx, state.Trigger)
 	diags = append(diags, d...)
 
@@ -1302,6 +1380,7 @@ func stateToNotificationRule(ctx context.Context, state notificationRuleModel) (
 		DisplayName:          state.DisplayName.ValueString(),
 		Devices:              devices,
 		DeviceLabels:         deviceLabels,
+		ProjectLabels:        projectLabels,
 		Trigger:              trigger,
 		EscalationLevels:     escalationLevels,
 		Schedule:             schedule,
@@ -1424,9 +1503,13 @@ func stateToSMSConfig(ctx context.Context, state *smsConfigModel) (*dt.SMSConfig
 	recipients, d := expandStringList(ctx, state.Recipients)
 	diags = append(diags, d...)
 
+	contactGroups, d := expandStringList(ctx, state.ContactGroups)
+	diags = append(diags, d...)
+
 	return &dt.SMSConfig{
-		Recipients: recipients,
-		Body:       state.Body.ValueString(),
+		Recipients:    recipients,
+		Body:          state.Body.ValueString(),
+		ContactGroups: contactGroups,
 	}, diags
 }
 
@@ -1440,10 +1523,14 @@ func stateToEmailConfig(ctx context.Context, state *emailConfigModel) (*dt.Email
 	recipients, d := expandStringList(ctx, state.Recipients)
 	diags = append(diags, d...)
 
+	contactGroups, d := expandStringList(ctx, state.ContactGroups)
+	diags = append(diags, d...)
+
 	return &dt.EmailConfig{
-		Recipients: recipients,
-		Subject:    state.Subject.ValueString(),
-		Body:       state.Body.ValueString(),
+		Recipients:    recipients,
+		Subject:       state.Subject.ValueString(),
+		Body:          state.Body.ValueString(),
+		ContactGroups: contactGroups,
 	}, diags
 }
 
@@ -1509,10 +1596,14 @@ func stateToPhoneCallConfig(ctx context.Context, state *phoneCallConfigModel) (*
 	recipients, d := expandStringList(ctx, state.Recipients)
 	diags = append(diags, d...)
 
+	contactGroups, d := expandStringList(ctx, state.ContactGroups)
+	diags = append(diags, d...)
+
 	return &dt.PhoneCallConfig{
-		Recipients:   recipients,
-		Introduction: state.Introduction.ValueString(),
-		Message:      state.Message.ValueString(),
+		Recipients:    recipients,
+		ContactGroups: contactGroups,
+		Introduction:  state.Introduction.ValueString(),
+		Message:       state.Message.ValueString(),
 	}, diags
 }
 
@@ -1563,4 +1654,20 @@ func stateToSchedule(state *scheduleModel) *dt.Schedule {
 	}
 
 	return &schedule
+}
+
+func stateToParent(state notificationRuleModel) (string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	// Check if either ParentResourceName or ProjectID is set.
+	if state.ParentResourceName.IsNull() || state.ParentResourceName.IsUnknown() {
+		if state.ProjectID.IsNull() || state.ProjectID.IsUnknown() {
+			diags.AddError(
+				"Missing Project ID",
+				"The `project_id` or `parent_resource_name` attribute is required when creating a notification rule.",
+			)
+		}
+		return parentTypeProjects + "/" + state.ProjectID.ValueString(), diags
+	}
+
+	return state.ParentResourceName.ValueString(), diags
 }

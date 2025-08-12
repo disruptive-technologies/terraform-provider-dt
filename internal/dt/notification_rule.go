@@ -24,6 +24,7 @@ type NotificationRule struct {
 	DisplayName          string            `json:"displayName"`
 	Devices              []string          `json:"devices"`
 	DeviceLabels         map[string]string `json:"deviceLabels"`
+	ProjectLabels        map[string]string `json:"projectLabels"`
 	Trigger              Trigger           `json:"trigger"`
 	EscalationLevels     []EscalationLevel `json:"escalationLevels"`
 	Schedule             *Schedule         `json:"schedule"`
@@ -55,14 +56,16 @@ type NotificationAction struct {
 }
 
 type SMSConfig struct {
-	Recipients []string `json:"recipients"`
-	Body       string   `json:"body"`
+	Recipients    []string `json:"recipients"`
+	ContactGroups []string `json:"contactGroups"`
+	Body          string   `json:"body"`
 }
 
 type EmailConfig struct {
-	Recipients []string `json:"recipients"`
-	Subject    string   `json:"subject"`
-	Body       string   `json:"body"`
+	Recipients    []string `json:"recipients"`
+	ContactGroups []string `json:"contactGroups"`
+	Subject       string   `json:"subject"`
+	Body          string   `json:"body"`
 }
 
 type CorrigoConfig struct {
@@ -93,9 +96,10 @@ type WebhookConfig struct {
 }
 
 type PhoneCallConfig struct {
-	Recipients   []string `json:"recipients"`
-	Introduction string   `json:"introduction"`
-	Message      string   `json:"message"`
+	Recipients    []string `json:"recipients"`
+	ContactGroups []string `json:"contactGroups"`
+	Introduction  string   `json:"introduction"`
+	Message       string   `json:"message"`
 }
 
 type SignalTowerConfig struct {
@@ -174,13 +178,14 @@ func (c *Client) GetNotificationRule(ctx context.Context, name string) (Notifica
 	}
 
 	// If the rule is not in the cache, we need to parse the resource name
-	projectID, _, err := ParseResourceName(name)
+	parentType, parentID, _, err := ParseRuleResourceName(name)
 	if err != nil {
 		return NotificationRule{}, fmt.Errorf("dt: failed to parse resource name: %w", err)
 	}
+	parent := fmt.Sprintf("%s/%s", parentType, parentID)
 
 	// make a list request to get all rules in the project and populate the cache.
-	response, err := c.listNotificationRules(ctx, projectID)
+	response, err := c.listNotificationRules(ctx, parent)
 	if err != nil {
 		return NotificationRule{}, fmt.Errorf("dt: failed to list notification rules: %w", err)
 	}
@@ -197,8 +202,8 @@ func (c *Client) GetNotificationRule(ctx context.Context, name string) (Notifica
 	return rule, nil
 }
 
-func (c *Client) listNotificationRules(ctx context.Context, projectID string) (ListNotificationRuleResponse, error) {
-	url := fmt.Sprintf("%s/v2alpha/projects/%s/rules", strings.TrimSuffix(c.URL, "/"), projectID)
+func (c *Client) listNotificationRules(ctx context.Context, parent string) (ListNotificationRuleResponse, error) {
+	url := fmt.Sprintf("%s/v2alpha/%s/rules", strings.TrimSuffix(c.URL, "/"), parent)
 	responseBody, err := c.DoRequest(ctx, http.MethodGet, url, nil, nil)
 	if err != nil {
 		return ListNotificationRuleResponse{}, fmt.Errorf("dt: failed to list notification rules: %w", err)
@@ -213,8 +218,8 @@ func (c *Client) listNotificationRules(ctx context.Context, projectID string) (L
 }
 
 // CreateNotificationRule creates a new notification rule.
-func (c *Client) CreateNotificationRule(ctx context.Context, projectID string, rule NotificationRule) (NotificationRule, error) {
-	url := fmt.Sprintf("%s/v2alpha/projects/%s/rules", strings.TrimSuffix(c.URL, "/"), projectID)
+func (c *Client) CreateNotificationRule(ctx context.Context, parent string, rule NotificationRule) (NotificationRule, error) {
+	url := fmt.Sprintf("%s/v2alpha/%s/rules", strings.TrimSuffix(c.URL, "/"), parent)
 
 	body, err := json.Marshal(rule)
 	if err != nil {
@@ -236,12 +241,12 @@ func (c *Client) CreateNotificationRule(ctx context.Context, projectID string, r
 
 // UpdateNotificationRule updates an existing notification rule.
 func (c *Client) UpdateNotificationRule(ctx context.Context, rule NotificationRule) (NotificationRule, error) {
-	projectID, ruleID, err := ParseResourceName(rule.Name)
+	parentType, parentID, ruleID, err := ParseRuleResourceName(rule.Name)
 	if err != nil {
 		return NotificationRule{}, fmt.Errorf("dt: failed to parse resource name: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/v2alpha/projects/%s/rules/%s", strings.TrimSuffix(c.URL, "/"), projectID, ruleID)
+	url := fmt.Sprintf("%s/v2alpha/%s/%s/rules/%s", strings.TrimSuffix(c.URL, "/"), parentType, parentID, ruleID)
 
 	body, err := json.Marshal(rule)
 	if err != nil {
@@ -263,12 +268,12 @@ func (c *Client) UpdateNotificationRule(ctx context.Context, rule NotificationRu
 
 // DeleteNotificationRule deletes a notification rule.
 func (c *Client) DeleteNotificationRule(ctx context.Context, name string) error {
-	projectID, ruleID, err := ParseResourceName(name)
+	parentType, projectID, ruleID, err := ParseRuleResourceName(name)
 	if err != nil {
 		return fmt.Errorf("dt: failed to parse resource name: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/v2alpha/projects/%s/rules/%s", strings.TrimSuffix(c.URL, "/"), projectID, ruleID)
+	url := fmt.Sprintf("%s/v2alpha/%s/%s/rules/%s", strings.TrimSuffix(c.URL, "/"), parentType, projectID, ruleID)
 	_, err = c.DoRequest(ctx, http.MethodDelete, url, nil, nil)
 	if err != nil {
 		return fmt.Errorf("dt: failed to delete notification rule: %w", err)
@@ -277,12 +282,20 @@ func (c *Client) DeleteNotificationRule(ctx context.Context, name string) error 
 	return nil
 }
 
-// ParseResourceName is a helper function to parse the resource name projects/{projectID}/rules/{ruleID}
-// into projectID and notificationRuleID.
-func ParseResourceName(name string) (string, string, error) {
+func ParseRuleResourceName(name string) (string, string, string, error) {
 	parts := strings.Split(name, "/")
 	if len(parts) != 4 {
-		return "", "", fmt.Errorf("dt: invalid resource name: %s", name)
+		return "", "", "", fmt.Errorf("dt: invalid resource name: %s", name)
 	}
-	return parts[1], parts[3], nil
+
+	// If the resource parent is not project or organization, we return an error.
+	if parts[0] != "projects" && parts[0] != "organizations" {
+		return "", "", "", fmt.Errorf("dt: invalid resource name: %s", name)
+	}
+
+	// If the resource type is not rule, we return an error.
+	if parts[2] != "rules" {
+		return "", "", "", fmt.Errorf("dt: invalid resource name: %s", name)
+	}
+	return parts[0], parts[1], parts[3], nil
 }
