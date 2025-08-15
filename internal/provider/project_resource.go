@@ -187,7 +187,7 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// get the project from the API
-	project, err := r.client.GetProject(ctx, state.Name.ValueString())
+	project, err := r.client.GetProject(ctx, state.Name.ValueString(), state.Organization.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to get project", err.Error())
 		return

@@ -64,14 +64,14 @@ func (c *projectCache) setProject(project Project) {
 	c.projects[project.Name] = project
 }
 
-func (c *Client) GetProject(ctx context.Context, projectName string) (Project, error) {
+func (c *Client) GetProject(ctx context.Context, projectName, organizationName string) (Project, error) {
 	// first check if the project is in the cache
 	if project, ok := c.projectCache.getProject(projectName); ok {
 		return project, nil
 	}
 
 	// call the API to get all the projects in the org and populate the cache
-	projects, err := c.listProjects(ctx)
+	projects, err := c.listProjects(ctx, organizationName)
 	if err != nil {
 		return Project{}, fmt.Errorf("failed to list projects: %w", err)
 	}
@@ -89,12 +89,17 @@ func (c *Client) GetProject(ctx context.Context, projectName string) (Project, e
 	return project, nil
 }
 
-func (c *Client) listProjects(ctx context.Context) (ListProjectResponse, error) {
+func (c *Client) listProjects(ctx context.Context, organization string) (ListProjectResponse, error) {
 	// Create the URL for the API request: https://api.disruptive-technologies.com/v2/projects
 	url := fmt.Sprintf("%s/v2/projects", strings.TrimSuffix(c.URL, "/"))
 
+	params := make(map[string]string)
+	if organization != "" {
+		params["organization"] = organization
+	}
+
 	// Send a GET request to the API
-	responseBody, err := c.DoRequest(ctx, http.MethodGet, url, nil, nil)
+	responseBody, err := c.DoRequest(ctx, http.MethodGet, url, nil, params)
 	if err != nil {
 		return ListProjectResponse{}, err
 	}

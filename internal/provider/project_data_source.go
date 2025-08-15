@@ -111,7 +111,7 @@ func (d *projectDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	project, err := d.client.GetProject(ctx, config.Name.ValueString())
+	project, err := d.client.GetProject(ctx, config.Name.ValueString(), config.Organization.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to get project", err.Error())
 		return
