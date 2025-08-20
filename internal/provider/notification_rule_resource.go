@@ -316,10 +316,12 @@ func (r *notificationRuleResource) Schema(ctx context.Context, req resource.Sche
 								queue, and a trigger counter (if enabled) will not be incremented.`,
 				Attributes: map[string]schema.Attribute{
 					"timezone": schema.StringAttribute{
-						Required: true,
+						Optional: true,
+						Computed: true,
 						Description: `The timezone for which the schedule applies. This will automatically handle DST if the correct zones are used.
 										E.g. "Europe/Oslo", "America/Los_Angeles", "UTC"
 										See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones`,
+						Default: stringdefault.StaticString(""),
 					},
 					"inverse": schema.BoolAttribute{
 						Optional:    true,

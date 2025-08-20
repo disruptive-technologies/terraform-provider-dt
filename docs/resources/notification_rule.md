@@ -433,16 +433,13 @@ Optional:
 <a id="nestedatt--schedule"></a>
 ### Nested Schema for `schedule`
 
-Required:
-
-- `timezone` (String) The timezone for which the schedule applies. This will automatically handle DST if the correct zones are used.
-										E.g. "Europe/Oslo", "America/Los_Angeles", "UTC"
-										See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-
 Optional:
 
 - `inverse` (Boolean) true, the schedule will be active when the event time is outside all specified slots.
 - `slots` (Attributes List) Slots of time where the rule should be active or inactive. (see [below for nested schema](#nestedatt--schedule--slots))
+- `timezone` (String) The timezone for which the schedule applies. This will automatically handle DST if the correct zones are used.
+										E.g. "Europe/Oslo", "America/Los_Angeles", "UTC"
+										See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 
 <a id="nestedatt--schedule--slots"></a>
 ### Nested Schema for `schedule.slots`

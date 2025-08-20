@@ -12,6 +12,23 @@ resource "dt_notification_rule" "test" {
       upper = 30
     }
   }
+  schedule = {
+    slots = [
+      {
+        day_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        time_range = [{
+          start = {
+            hour   = 8
+            minute = 0
+          }
+          end = {
+            hour   = 20
+            minute = 0
+          }
+        }]
+      }
+    ]
+  }
   escalation_levels = [
     {
       display_name = "Email General Manager"
