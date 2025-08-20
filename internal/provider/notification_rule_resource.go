@@ -858,8 +858,16 @@ func (r *notificationRuleResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	// Determine if the project ID should be used
+	legacyProjectID := false
+	// Resource name take precedence over project ID
+	if plan.ParentResourceName.IsUnknown() || plan.ParentResourceName.IsNull() {
+		// legacy project id is used if no parent resource name is set and project ID is set
+		legacyProjectID = !plan.ProjectID.IsUnknown() && !plan.ProjectID.IsNull()
+	}
+
 	// Convert the created notification rule to the state model
-	state, diags := notificationRuleToState(ctx, created)
+	state, diags := notificationRuleToState(ctx, created, legacyProjectID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -893,8 +901,16 @@ func (r *notificationRuleResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
+	// Determine if the project ID should be used
+	legacyProjectID := false
+	// Resource name take precedence over project ID
+	if state.ParentResourceName.IsUnknown() || state.ParentResourceName.IsNull() {
+		// legacy project id is used if no parent resource name is set and project ID is set
+		legacyProjectID = !state.ProjectID.IsUnknown() && !state.ProjectID.IsNull()
+	}
+
 	// Convert the notification rule to the state model
-	state, diags = notificationRuleToState(ctx, notificationRule)
+	state, diags = notificationRuleToState(ctx, notificationRule, legacyProjectID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -956,8 +972,16 @@ func (r *notificationRuleResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
+	// Determine if the project ID should be used
+	legacyProjectID := false
+	// Resource name take precedence over project ID
+	if plan.ParentResourceName.IsUnknown() || plan.ParentResourceName.IsNull() {
+		// legacy project id is used if no parent resource name is set and project ID is set
+		legacyProjectID = !plan.ProjectID.IsUnknown() && !plan.ProjectID.IsNull()
+	}
+
 	// Convert the updated notification rule to the state model
-	state, diags := notificationRuleToState(ctx, updated)
+	state, diags := notificationRuleToState(ctx, updated, legacyProjectID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -991,7 +1015,7 @@ func (r *notificationRuleResource) Configure(ctx context.Context, req resource.C
 }
 
 // NotificationRuleResource converts the dt.NotificationRule to the state model.
-func notificationRuleToState(ctx context.Context, notificationRule dt.NotificationRule) (notificationRuleModel, diag.Diagnostics) {
+func notificationRuleToState(ctx context.Context, notificationRule dt.NotificationRule, legacyProjectID bool) (notificationRuleModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	devicesList, d := types.ListValueFrom(ctx, types.StringType, notificationRule.Devices)
 	diags = append(diags, d...)
@@ -1024,12 +1048,10 @@ func notificationRuleToState(ctx context.Context, notificationRule dt.Notificati
 
 	state.Name = types.StringValue(notificationRule.Name)
 
-	if parentType == parentTypeOrganizations {
-		state.ParentResourceName = types.StringValue(parentType + "/" + parentID)
-	}
-
-	if parentType == parentTypeProjects {
+	if legacyProjectID {
 		state.ProjectID = types.StringValue(parentID)
+	} else {
+		state.ParentResourceName = types.StringValue(parentType + "/" + parentID)
 	}
 
 	state.Enabled = types.BoolValue(notificationRule.Enabled)
