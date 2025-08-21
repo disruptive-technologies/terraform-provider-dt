@@ -44,6 +44,7 @@ func TestAccSafeProjectResource(t *testing.T) {
 					resource.TestCheckResourceAttr("dt_project.test", "location.longitude", "10.910202"),
 					resource.TestCheckResourceAttr("dt_project.test", "location.time_location", "Europe/Oslo"),
 					resource.TestCheckResourceAttr("dt_project.test", "inventory", "false"),
+					resource.TestCheckResourceAttr("dt_project.test", "labels.%", "0"),
 				),
 			},
 			{
@@ -65,6 +66,7 @@ func TestAccSafeProjectResource(t *testing.T) {
 					resource.TestCheckResourceAttr("dt_project.test", "location.longitude", "10.63904"),
 					resource.TestCheckResourceAttr("dt_project.test", "location.time_location", "Europe/Oslo"),
 					resource.TestCheckResourceAttr("dt_project.test", "inventory", "false"),
+					resource.TestCheckResourceAttr("dt_project.test", "labels.%", "0"),
 				),
 			},
 		},
@@ -78,6 +80,65 @@ func TestAccSafeProjectResource(t *testing.T) {
 					resource.TestCheckResourceAttr("dt_project.test", "display_name", "Empty Location Project"),
 					resource.TestCheckResourceAttr("dt_project.test", "location.time_location", "UTC"),
 					resource.TestCheckResourceAttr("dt_project.test", "inventory", "false"),
+					resource.TestCheckResourceAttr("dt_project.test", "labels.%", "0"),
+				),
+			},
+		},
+	})
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: providerConfig + `
+resource "dt_project" "test_labels" {
+    display_name = "Project with labels"
+    organization = "organizations/cvinmt9aq9sc738g6eog"
+    location = {
+        time_location = "Europe/Oslo"
+    }
+    labels = {
+        "foo" = "bar"
+    }
+}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dt_project.test_labels", "display_name", "Project with labels"),
+					resource.TestCheckResourceAttr("dt_project.test_labels", "labels.%", "1"),
+					resource.TestCheckResourceAttr("dt_project.test_labels", "labels.foo", "bar"),
+				),
+			},
+			{
+				Config: providerConfig + `
+resource "dt_project" "test_labels" {
+    display_name = "Project with labels"
+    organization = "organizations/cvinmt9aq9sc738g6eog"
+    location = {
+        time_location = "Europe/Oslo"
+    }
+    labels = {
+        "foo" = "baz"
+        "new" = "label"
+    }
+}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dt_project.test_labels", "display_name", "Project with labels"),
+					resource.TestCheckResourceAttr("dt_project.test_labels", "labels.%", "2"),
+					resource.TestCheckResourceAttr("dt_project.test_labels", "labels.foo", "baz"),
+					resource.TestCheckResourceAttr("dt_project.test_labels", "labels.new", "label"),
+				),
+			},
+			{
+				Config: providerConfig + `
+resource "dt_project" "test_labels" {
+    display_name = "Project with labels"
+    organization = "organizations/cvinmt9aq9sc738g6eog"
+    location = {
+        time_location = "Europe/Oslo"
+    }
+    labels = {}
+}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dt_project.test_labels", "display_name", "Project with labels"),
+					resource.TestCheckResourceAttr("dt_project.test_labels", "labels.%", "0"),
 				),
 			},
 		},

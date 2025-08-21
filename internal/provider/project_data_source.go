@@ -78,6 +78,11 @@ func (d *projectDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 					"time_location": types.StringType,
 				},
 			},
+			"labels": schema.MapAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "A map of labels assigned to the project.",
+			},
 		},
 	}
 }
@@ -93,6 +98,7 @@ type projectDataSourceModel struct {
 	SensorCount             types.Int32                     `tfsdk:"sensor_count"`
 	CloudConnectorCount     types.Int32                     `tfsdk:"cloud_connector_count"`
 	Location                *projectLocationDataSourceModel `tfsdk:"location"`
+	Labels                  types.Map                       `tfsdk:"labels"`
 }
 
 type projectLocationDataSourceModel struct {

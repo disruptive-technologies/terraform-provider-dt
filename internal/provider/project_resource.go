@@ -7,12 +7,14 @@ import (
 	"fmt"
 
 	"github.com/disruptive-technologies/terraform-provider-dt/internal/dt"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int32planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -120,6 +122,13 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					},
 				},
 			},
+			"labels": schema.MapAttribute{
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "A map of labels to assign to the project.",
+				Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+			},
 		},
 	}
 }
@@ -135,6 +144,7 @@ type projectResourceModel struct {
 	SensorCount             types.Int32                   `tfsdk:"sensor_count"`
 	CloudConnectorCount     types.Int32                   `tfsdk:"cloud_connector_count"`
 	Location                *projectLocationResourceModel `tfsdk:"location"`
+	Labels                  types.Map                     `tfsdk:"labels"`
 }
 
 type projectLocationResourceModel struct {
@@ -147,13 +157,17 @@ type projectLocationResourceModel struct {
 func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve the data from the request.
 	var plan projectResourceModel
-	dias := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(dias...)
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	project := stateToProject(plan)
+	project, diags := stateToProject(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Create the project.
 	project, err := r.client.CreateProject(ctx, project)
@@ -162,15 +176,15 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	plan, diags := projectToState(project)
+	plan, diags = projectToState(project)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Set the Terraform state.
-	dias = resp.State.Set(ctx, &plan)
-	resp.Diagnostics.Append(dias...)
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -210,30 +224,46 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// retrieve values from plan
+	var plan projectResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	var state projectResourceModel
-	diags := req.Plan.Get(ctx, &state)
+	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// generate the api request from the plan
-	toBeUpdated := stateToUpdateProjectRequest(state)
+	// Update the project attributes
+	toBeUpdated := stateToUpdateProjectRequest(plan)
 	project, err := r.client.UpdateProject(ctx, toBeUpdated)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update project", err.Error())
 		return
 	}
 
-	// set the updated state
-	updateProjectState(project, &state)
+	targetLabels := make(map[string]string)
+	diags = plan.Labels.ElementsAs(ctx, &targetLabels, false)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	project, err = r.client.SetProjectLabels(ctx, project, targetLabels)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to sync project labels", err.Error())
+		return
+	}
+
+	newState, diags := projectToState(project)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// set the state
-	diags = resp.State.Set(ctx, &state)
+	diags = resp.State.Set(ctx, &newState)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -281,10 +311,11 @@ func (r *projectResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func projectToState(project dt.Project) (projectResourceModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	id, err := project.ID()
 	if err != nil {
-		diags := diag.NewErrorDiagnostic("ID", "failed to get project ID")
-		return projectResourceModel{}, diag.Diagnostics{diags}
+		diags.AddError("ID", "failed to get project ID")
+		return projectResourceModel{}, diags
 	}
 	var latitude types.Float64
 	if project.Location.Latitude != nil {
@@ -298,6 +329,13 @@ func projectToState(project dt.Project) (projectResourceModel, diag.Diagnostics)
 	} else {
 		longitude = types.Float64Null()
 	}
+
+	labelsMap, d := types.MapValueFrom(context.Background(), types.StringType, project.Labels)
+	diags.Append(d...)
+	if diags.HasError() {
+		return projectResourceModel{}, diags
+	}
+
 	return projectResourceModel{
 		ID:                      types.StringValue(id),
 		Name:                    types.StringValue(project.Name),
@@ -305,17 +343,19 @@ func projectToState(project dt.Project) (projectResourceModel, diag.Diagnostics)
 		Inventory:               types.BoolValue(project.Inventory),
 		Organization:            types.StringValue(project.Organization),
 		OrganizationDisplayName: types.StringValue(project.OrganizationDisplayName),
-		SensorCount:             types.Int32Value(int32(project.SensorCount)),
-		CloudConnectorCount:     types.Int32Value(int32(project.CloudConnectorCount)),
+		SensorCount:             types.Int32Value(int32(project.SensorCount)),         //nolint:gosec
+		CloudConnectorCount:     types.Int32Value(int32(project.CloudConnectorCount)), //nolint:gosec
 		Location: &projectLocationResourceModel{
 			Latitude:     latitude,
 			Longitude:    longitude,
 			TimeLocation: types.StringValue(project.Location.TimeLocation),
 		},
-	}, nil
+		Labels: labelsMap,
+	}, diags
 }
 
-func stateToProject(state projectResourceModel) dt.Project {
+func stateToProject(ctx context.Context, state projectResourceModel) (dt.Project, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	project := dt.Project{
 		Name:                    state.Name.ValueString(),
 		DisplayName:             state.DisplayName.ValueString(),
@@ -332,7 +372,15 @@ func stateToProject(state projectResourceModel) dt.Project {
 			TimeLocation: state.Location.TimeLocation.ValueString(),
 		}
 	}
-	return project
+
+	labels := make(map[string]string)
+	if !state.Labels.IsNull() {
+		d := state.Labels.ElementsAs(ctx, &labels, false)
+		diags.Append(d...)
+	}
+	project.Labels = labels
+
+	return project, diags
 }
 
 func stateToUpdateProjectRequest(state projectResourceModel) dt.EditableProject {
@@ -341,6 +389,7 @@ func stateToUpdateProjectRequest(state projectResourceModel) dt.EditableProject 
 		DisplayName:  state.DisplayName.ValueString(),
 		Organization: state.Organization.ValueString(),
 	}
+
 	if state.Location != nil {
 		updateRequest.Location = dt.Location{
 			Latitude:     state.Location.Latitude.ValueFloat64Pointer(),
@@ -349,15 +398,4 @@ func stateToUpdateProjectRequest(state projectResourceModel) dt.EditableProject 
 		}
 	}
 	return updateRequest
-}
-
-func updateProjectState(project dt.EditableProject, state *projectResourceModel) {
-	state.Name = types.StringValue(project.Name)
-	state.DisplayName = types.StringValue(project.DisplayName)
-	state.Organization = types.StringValue(project.Organization)
-	state.Location = &projectLocationResourceModel{
-		Latitude:     types.Float64PointerValue(project.Location.Latitude),
-		Longitude:    types.Float64PointerValue(project.Location.Longitude),
-		TimeLocation: types.StringValue(project.Location.TimeLocation),
-	}
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,14 +17,15 @@ type ListProjectResponse struct {
 }
 
 type Project struct {
-	Name                    string   `json:"name"`
-	DisplayName             string   `json:"displayName"`
-	Inventory               bool     `json:"inventory"`
-	Organization            string   `json:"organization"`
-	OrganizationDisplayName string   `json:"organizationDisplayName"`
-	SensorCount             int      `json:"sensorCount"`
-	CloudConnectorCount     int      `json:"cloudConnectorCount"`
-	Location                Location `json:"location"`
+	Name                    string            `json:"name"`
+	DisplayName             string            `json:"displayName"`
+	Inventory               bool              `json:"inventory"`
+	Organization            string            `json:"organization"`
+	OrganizationDisplayName string            `json:"organizationDisplayName"`
+	SensorCount             int               `json:"sensorCount"`
+	CloudConnectorCount     int               `json:"cloudConnectorCount"`
+	Location                Location          `json:"location"`
+	Labels                  map[string]string `json:"labels"`
 }
 
 type EditableProject struct {
@@ -113,37 +115,37 @@ func (c *Client) listProjects(ctx context.Context, organization string) (ListPro
 	return projects, nil
 }
 
-func (c *Client) UpdateProject(ctx context.Context, project EditableProject) (EditableProject, error) {
+func (c *Client) UpdateProject(ctx context.Context, project EditableProject) (Project, error) {
 	// Get the project ID from the project name
 	projectID, err := idFromProject(project.Name)
 	if err != nil {
-		return EditableProject{}, fmt.Errorf("failed to get project ID: %w", err)
+		return Project{}, fmt.Errorf("failed to get project ID: %w", err)
 	}
 
 	// Create the URL for the API request: https://api.disruptive-technologies.com/v2/projects/{project_id}
 	url := fmt.Sprintf("%s/v2/projects/%s", strings.TrimSuffix(c.URL, "/"), projectID)
 	body, err := json.Marshal(project)
 	if err != nil {
-		return EditableProject{}, err
+		return Project{}, err
 	}
 
 	// Send a PUT request to the API
 	responseBody, err := c.DoRequest(ctx, http.MethodPatch, url, body, nil)
 	if err != nil {
-		return EditableProject{}, err
+		return Project{}, err
 	}
 
 	// Unmarshal the response body to a Project struct
-	var p EditableProject
+	var p Project
 	err = json.Unmarshal(responseBody, &p)
 	if err != nil {
-		return EditableProject{}, err
+		return Project{}, err
 	}
-
+	c.projectCache.setProject(p)
 	return p, nil
 }
 
-type createProjectRequest struct {
+type createProjectRequestSchema struct {
 	DisplayName  string `json:"displayName"`
 	Organization string `json:"organization"`
 	Location     struct {
@@ -153,11 +155,51 @@ type createProjectRequest struct {
 	} `json:"location"`
 }
 
+type batchUpdateProjectSchema struct {
+	Projects     []string          `json:"projects"`
+	AddLabels    map[string]string `json:"addLabels"`
+	RemoveLabels []string          `json:"removeLabels"`
+}
+
+func (c *Client) SetProjectLabels(ctx context.Context, project Project, targetLabels map[string]string) (Project, error) {
+	req := batchUpdateProjectSchema{
+		Projects:  []string{project.Name},
+		AddLabels: targetLabels,
+	}
+
+	// Remove existing labels
+	for k := range project.Labels {
+		if _, found := targetLabels[k]; !found {
+			req.RemoveLabels = append(req.RemoveLabels, k)
+		}
+	}
+
+	// Return early if no labels needs to be applied
+	if len(req.AddLabels) == 0 && len(req.RemoveLabels) == 0 {
+		return project, nil
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return Project{}, err
+	}
+
+	url := fmt.Sprintf("%s/v2/projects:batchUpdate", strings.TrimSuffix(c.URL, "/"))
+	_, err = c.DoRequest(ctx, "POST", url, body, nil)
+	if err != nil {
+		return Project{}, fmt.Errorf("failed to update batch update labels: %w", err)
+	}
+	// Let's assume the correct labels are set.
+	project.Labels = maps.Clone(targetLabels)
+	c.projectCache.setProject(project)
+	return project, nil
+}
+
 func (c *Client) CreateProject(ctx context.Context, project Project) (Project, error) {
 	// Create the URL for the API request: https://api.disruptive-technologies.com/v2/projects
 	url := fmt.Sprintf("%s/v2/projects", strings.TrimSuffix(c.URL, "/"))
 
-	createProjectRequest := createProjectRequest{
+	createProjectRequest := createProjectRequestSchema{
 		DisplayName:  project.DisplayName,
 		Organization: project.Organization,
 		Location:     project.Location,
@@ -182,7 +224,15 @@ func (c *Client) CreateProject(ctx context.Context, project Project) (Project, e
 		return Project{}, err
 	}
 
-	return p, nil
+	if maps.Equal(project.Labels, p.Labels) {
+		return p, nil
+	}
+
+	project, err = c.SetProjectLabels(ctx, p, project.Labels)
+	if err != nil {
+		return Project{}, err
+	}
+	return project, nil
 }
 
 func (c *Client) DeleteProject(ctx context.Context, project string) error {
