@@ -38,6 +38,7 @@ output "project" {
 - `display_name` (String) The display name of the project.
 - `id` (String) The resource ID of the project.
 - `inventory` (Boolean) Whether the project is an inventory project.
+- `labels` (Map of String) A map of labels assigned to the project.
 - `location` (Object) (see [below for nested schema](#nestedatt--location))
 - `organization` (String) The reource name of the organization that the project belongs to. on the form `organizations/{organization_id}`.
 - `organization_display_name` (String) The display name of the organization that the project belongs to.

@@ -36,6 +36,10 @@ resource "dt_project" "my_project" {
 - `location` (Attributes) The location of the project. (see [below for nested schema](#nestedatt--location))
 - `organization` (String) The reource name of the organization that the project belongs to. on the form `organizations/{organization_id}`.
 
+### Optional
+
+- `labels` (Map of String) A map of labels to assign to the project.
+
 ### Read-Only
 
 - `cloud_connector_count` (Number) The number of cloud connectors in the project.
